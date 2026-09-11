@@ -18,6 +18,15 @@ export class BillerService {
     return this.repository.findOne({ where: { id } as any });
   }
 
+  getCategories() {
+  return this.repository
+    .createQueryBuilder('biller')
+    .select('DISTINCT biller.category', 'code')
+    .addSelect('biller.category', 'name')
+    .where('biller.active = :active', { active: true })
+    .getRawMany();
+}
+
   create(data: Partial<BillerRegistration>) {
     const entity = this.repository.create(data);
     return this.repository.save(entity);

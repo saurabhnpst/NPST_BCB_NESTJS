@@ -20,6 +20,11 @@ export class BillerController {
     return this.service.findOne(id);
   }
 
+  @Get('categories')
+getCategories() {
+  return this.service.getCategories();
+}
+
   @Post()
   create(@Body() dto: CreateBillerDto) {
     return this.service.create(dto);
