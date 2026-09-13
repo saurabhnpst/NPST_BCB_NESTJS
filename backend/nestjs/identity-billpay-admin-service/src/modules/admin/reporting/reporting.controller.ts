@@ -10,8 +10,30 @@ import { ReportQueryDto } from './dto/report-query.dto';
 export class ReportingController {
   constructor(private readonly service: ReportingService) {}
 
-  @Get()
-  find(@Query() query: ReportQueryDto) {
-    return this.service.query(query);
-  }
+
+  @Get('transactions/daily-summary')
+  dailySummary(@Query() query: ReportQueryDto) {
+  return this.service.dailySummary(query);
+   }
+
+   @Get('transactions/failed')
+failedTransactions(@Query() query: ReportQueryDto) {
+  return this.service.failedTransactions(query);
+}
+
+@Get('transactions/high-value')
+highValueTransactions(@Query() query: ReportQueryDto) {
+  return this.service.highValueTransactions(query);
+}
+
+@Get('transactions/branch-wise')
+branchWise(@Query() query: ReportQueryDto) {
+  return this.service.branchWise(query);
+}
+
+@Get('transactions/channel-wise')
+channelWise(@Query() query: ReportQueryDto) {
+  return this.service.channelWise(query);
+}
+  
 }
