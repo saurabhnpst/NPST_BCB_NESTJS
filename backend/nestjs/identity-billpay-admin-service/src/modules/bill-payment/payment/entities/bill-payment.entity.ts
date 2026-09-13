@@ -22,14 +22,7 @@ export class BillPayment {
     precision: 12,
     scale: 2,
   })
-
-  @Column({
-  type: 'decimal',
-  precision: 12,
-  scale: 2,
-})
-
-amount: number;
+  amount: number;
 
   @Column({ default: 'PENDING' })
   status: string;

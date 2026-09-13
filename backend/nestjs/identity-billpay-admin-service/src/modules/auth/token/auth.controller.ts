@@ -15,7 +15,7 @@ import { LogoutDto } from './dto/logout.dto';
 // DTO (./dto/signup.dto.ts) validating/shaping the signup request body (username, password, optional email/firstName/lastName).
 import { SignupDto } from './dto/signup.dto';
 // DTO (./dto/token-response.dto.ts) describing the shape of the token payload returned to callers, used here only for Swagger response typing.
-import { TokenResponseDto } from './dto/token-response.dto';
+import { TokenLoginResponseDto } from './dto/token-login-response.dto';
 
 /**
  * This service holds no server-side session state — every route here is a thin,
@@ -43,7 +43,12 @@ export class AuthController {
       'Returns access and refresh tokens. Use accessToken as Bearer token for protected APIs.',
   })
   // Swagger doc: describes the 200 success response shape, referencing TokenResponseDto.
-  @ApiResponse({ status: 200, description: 'Login successful', type: TokenResponseDto })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Login successful. Use **data.accessToken** from the response body in Swagger Authorize (not refreshToken).',
+    type: TokenLoginResponseDto,
+  })
   // Swagger doc: describes the 401 error response for bad credentials or Keycloak errors.
   @ApiResponse({ status: 401, description: 'Invalid credentials or Keycloak error' })
   // Handler: takes the validated LoginDto from the request body...

@@ -35,6 +35,22 @@ export class PaymentService {
 
   // demo_bbps_data is a fallback, checked only when billerCode+consumerNumber aren't in
   // mock_bill — see demo/entities/demo-bbps-data.entity.ts for why it's a separate table.
+  private async findBillingRecordByBillNumber(
+    billNumber: string,
+  ): Promise<BillingRecord | null> {
+    const mock = await this.mockBillRepository.findOne({ where: { billNumber } });
+    if (mock) {
+      return { source: 'mock', record: mock };
+    }
+
+    const demo = await this.demoRepository.findOne({ where: { billNumber } });
+    if (demo) {
+      return { source: 'demo', record: demo };
+    }
+
+    return null;
+  }
+
   private async findBillingRecord(
     billerCode: string,
     consumerNumber: string,
@@ -63,7 +79,14 @@ export class PaymentService {
   }
 
   async create(dto: CreatePaymentDto) {
-    
+    if (!dto.billNumber && (!dto.billerCode || !dto.consumerNumber || !dto.amount)) {
+      throw new BadRequestException({
+        code: 'INVALID_PAYMENT_REQUEST',
+        message:
+          'Provide billNumber from fetch, or billerCode + consumerNumber + amount together',
+      });
+    }
+
     // 0. Idempotency check
   const existingPayment = await this.paymentRepository.findOne({
     where: {
@@ -96,7 +119,9 @@ export class PaymentService {
 }
 
     // 1. Find bill
-    const found = await this.findBillingRecord(dto.billerCode, dto.consumerNumber);
+    const found = dto.billNumber
+      ? await this.findBillingRecordByBillNumber(dto.billNumber)
+      : await this.findBillingRecord(dto.billerCode!, dto.consumerNumber!);
 
     if (!found) {
       throw new NotFoundException({
@@ -116,8 +141,9 @@ export class PaymentService {
     }
 
     // 3. Verify amount
-    const requestedAmount = Number(dto.amount);
     const billAmount = Number(bill.amount);
+    const requestedAmount =
+      dto.amount != null && dto.amount !== '' ? Number(dto.amount) : billAmount;
 
     if (
       Number.isNaN(requestedAmount) ||
@@ -161,6 +187,7 @@ export class PaymentService {
     // 7. Return payment result
     return {
       paymentId: savedPayment.id,
+      billNumber: bill.billNumber,
       billerCode: savedPayment.billerCode,
       consumerNumber: savedPayment.consumerNumber,
       amount: savedPayment.amount,

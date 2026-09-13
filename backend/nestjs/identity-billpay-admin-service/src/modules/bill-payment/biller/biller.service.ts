@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { BBPS_CATEGORIES } from '../catalog/bbps-catalog.const';
 import { BillerRegistration } from './entities/biller-registration.entity';
 
 @Injectable()
@@ -10,7 +11,12 @@ export class BillerService {
     private readonly repository: Repository<BillerRegistration>,
   ) {}
 
-  findAll() {
+  findAll(category?: string) {
+    if (category) {
+      return this.repository.find({
+        where: { category, active: true },
+      });
+    }
     return this.repository.find();
   }
 
@@ -19,13 +25,11 @@ export class BillerService {
   }
 
   getCategories() {
-  return this.repository
-    .createQueryBuilder('biller')
-    .select('DISTINCT biller.category', 'code')
-    .addSelect('biller.category', 'name')
-    .where('biller.active = :active', { active: true })
-    .getRawMany();
-}
+    return BBPS_CATEGORIES.map((category) => ({
+      code: category,
+      name: category,
+    }));
+  }
 
   create(data: Partial<BillerRegistration>) {
     const entity = this.repository.create(data);

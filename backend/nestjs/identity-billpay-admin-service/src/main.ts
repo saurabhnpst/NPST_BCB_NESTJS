@@ -16,6 +16,7 @@ import {
   resolveApiGlobalPrefix,
   resolveGatewayPathPrefix,
 } from './config/api-path.config';
+import { applySwaggerSecurityDefaults } from './common/swagger/swagger-document.util';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -77,8 +78,8 @@ async function bootstrap(): Promise<void> {
           '- `[Mobile / Customer]` — mobile app endpoints for retail/corporate customers (use Keycloak client `mobile-app`)\n' +
           '- `[Admin]` — admin web portal for bank staff (use Keycloak client `admin-web`)\n\n' +
           '**Auth flow:**\n' +
-          '1. `POST /auth/login` — copy **`accessToken`** (not `refreshToken`)\n' +
-          '2. Click **Authorize** and paste the token only (no `Bearer` prefix)\n' +
+          '1. `POST /auth/login` — in the **Response body**, copy **`data.accessToken`** (not `data.refreshToken`)\n' +
+          '2. Click **Authorize** (top right), paste the JWT only (no `Bearer` prefix), then **Authorize** again\n' +
           '3. Call protected endpoints within 5 minutes\n' +
           '4. `POST /auth/logout` when done',
       )
@@ -90,8 +91,10 @@ async function bootstrap(): Promise<void> {
         description:
           'Paste **accessToken** from POST /auth/login only. Do not paste refreshToken or the word Bearer.',
       })
+      .addSecurityRequirements('bearer')
       .build(),
   );
+  applySwaggerSecurityDefaults(swaggerDocument);
   SwaggerModule.setup(swaggerMountPath, app, swaggerDocument, {
     jsonDocumentUrl: swaggerJsonPath,
     swaggerOptions: {
