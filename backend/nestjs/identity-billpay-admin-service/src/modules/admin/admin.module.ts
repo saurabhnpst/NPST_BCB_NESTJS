@@ -12,6 +12,8 @@ import { AuthorizationRuleHistory } from './authorization-rules/entities/authori
 import { ReportingController } from './reporting/reporting.controller';
 import { ReportingService } from './reporting/reporting.service';
 import { TransactionProvider } from './reporting/providers/transaction.provider';
+import { ReportExportService } from './reporting/exporters/report-export.service';
+
 @Module({
   imports: [
     InternalEventBusModule,
@@ -29,6 +31,7 @@ import { TransactionProvider } from './reporting/providers/transaction.provider'
     AuthorizationRulesService,
     ReportingService,
     TransactionProvider,
+    ReportExportService,
   ],
   exports: [],
 })
