@@ -12,6 +12,7 @@ import { BillPayment } from './payment/entities/bill-payment.entity';
 import { BillScheduleController } from './scheduling/bill-schedule.controller';
 import { BillScheduleService } from './scheduling/bill-schedule.service';
 import { BillSchedule } from './scheduling/entities/bill-schedule.entity';
+import { BillScheduleExecution } from './scheduling/entities/bill-schedule-execution.entity';
 
 import { MockBill } from './bill/entities/mock-bill.entity';
 import { BillController } from './bill/controller/bill.controller';
@@ -29,6 +30,7 @@ import { BbpsCatalogSeeder } from './catalog/bbps-catalog.seeder';
       BillerRegistration,
       BillPayment,
       BillSchedule,
+      BillScheduleExecution,
       MockBill,
       DemoBbpsData,
     ]),

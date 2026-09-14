@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+import { ScheduleStatus } from '../schedule-status.constant';
+
 @Entity({ name: 'bill_schedule' })
 export class BillSchedule {
   @PrimaryGeneratedColumn('uuid')
@@ -21,11 +23,11 @@ export class BillSchedule {
   scheduleType: string;
 
   @Column({
-  name: 'frequency',
-  type: 'varchar',
-  nullable: true,
-})
-frequency: string | null;
+    name: 'frequency',
+    type: 'varchar',
+    nullable: true,
+  })
+  frequency: string | null;
 
   @Column({ name: 'next_run_at', type: 'datetime' })
   nextRunAt: Date;
@@ -41,6 +43,9 @@ frequency: string | null;
 
   @Column({ default: true })
   active: boolean;
+
+  @Column({ type: 'varchar', length: 32, default: ScheduleStatus.ACTIVE })
+  status: ScheduleStatus;
 
   @Column({ name: 'keycloak_user_id', type: 'varchar', length: 36, nullable: true })
   keycloakUserId: string | null;

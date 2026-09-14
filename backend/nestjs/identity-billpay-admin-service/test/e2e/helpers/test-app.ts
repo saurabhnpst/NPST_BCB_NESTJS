@@ -35,6 +35,11 @@ export const TEST_CORPORATE_MAKER = {
   realm_access: { roles: ['CORPORATE_MAKER'] },
 };
 
+export const TEST_CORPORATE_VIEWER = {
+  sub: '66666666-6666-6666-6666-666666666666',
+  realm_access: { roles: ['CORPORATE_VIEWER'] },
+};
+
 export const TEST_NO_ROLE = {
   sub: '33333333-3333-3333-3333-333333333333',
   realm_access: { roles: [] as string[] },
