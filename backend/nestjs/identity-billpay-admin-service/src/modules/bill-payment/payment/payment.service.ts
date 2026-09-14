@@ -12,6 +12,12 @@ import { MockBill } from '../bill/entities/mock-bill.entity';
 import { DemoBbpsData } from '../demo/entities/demo-bbps-data.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { BbpsAdapter } from './adapter/bbps.adapter';
+import {
+  assertIdempotentPaymentOwnedByActor,
+  assertPaymentOwnedByActor,
+  canViewAllBillPayments,
+  requireActorSub,
+} from '../common/bbps-access.util';
 
 type BillingRecord =
   | { source: 'mock'; record: MockBill }
@@ -68,17 +74,30 @@ export class PaymentService {
     return null;
   }
 
-  findAll() {
-    return this.paymentRepository.find();
+  findAll(actor: Record<string, unknown>) {
+    if (canViewAllBillPayments(actor)) {
+      return this.paymentRepository.find();
+    }
+    const sub = requireActorSub(actor);
+    return this.paymentRepository.find({ where: { keycloakUserId: sub } });
   }
 
-  findOne(id: string) {
-    return this.paymentRepository.findOne({
+  async findOne(id: string, actor: Record<string, unknown>) {
+    const payment = await this.paymentRepository.findOne({
       where: { id },
     });
+    if (!payment) {
+      throw new NotFoundException({
+        code: 'PAYMENT_NOT_FOUND',
+        message: 'Bill payment not found',
+      });
+    }
+    assertPaymentOwnedByActor(payment, actor);
+    return payment;
   }
 
-  async create(dto: CreatePaymentDto) {
+  async create(dto: CreatePaymentDto, actor: Record<string, unknown>) {
+    const keycloakUserId = requireActorSub(actor);
     if (!dto.billNumber && (!dto.billerCode || !dto.consumerNumber || !dto.amount)) {
       throw new BadRequestException({
         code: 'INVALID_PAYMENT_REQUEST',
@@ -95,6 +114,7 @@ export class PaymentService {
     });
 
     if (existingPayment) {
+      assertIdempotentPaymentOwnedByActor(existingPayment, actor);
       const sameRequest = await this.isSamePaymentRequest(dto, existingPayment);
 
       if (!sameRequest) {
@@ -166,6 +186,7 @@ export class PaymentService {
       amount: billAmount,
       status: bbpsResponse.status,
       idempotencyKey: dto.idempotencyKey!,
+      keycloakUserId,
       bbpsReferenceId: bbpsResponse.referenceId,
     });
 
@@ -227,11 +248,13 @@ export class PaymentService {
     );
   }
 
-  async payViaBbps(billPaymentId: string): Promise<void> {
+  async payViaBbps(billPaymentId: string, actor: Record<string, unknown>): Promise<void> {
     const payment = await this.paymentRepository.findOne({ where: { id: billPaymentId } });
     if (!payment) {
       throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: 'Bill payment not found' });
     }
+
+    assertPaymentOwnedByActor(payment, actor);
 
     if (payment.status === 'SUCCESS') {
       return;

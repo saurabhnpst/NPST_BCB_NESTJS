@@ -1,10 +1,13 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { APP_GUARD, Reflector } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import * as supertest from 'supertest';
 import { KeycloakService } from '../../../src/modules/auth/keycloak/keycloak.service';
 import { LoggingInterceptor } from '../../../src/common/interceptors/logging.interceptor';
 import { ResponseTransformInterceptor } from '../../../src/common/interceptors/response-transform.interceptor';
+import { RolesGuard } from '../../../src/common/guards/roles.guard';
+import { E2eTestAuthGuard } from './e2e-test-auth.guard';
 import { TestAppModule } from './test-app.module';
 
 export const TEST_SUPERADMIN = {
@@ -15,6 +18,21 @@ export const TEST_SUPERADMIN = {
 export const TEST_BANK_ADMIN = {
   sub: '22222222-2222-2222-2222-222222222222',
   realm_access: { roles: ['BANK_ADMIN'] },
+};
+
+export const TEST_RETAIL_CUSTOMER = {
+  sub: '77777777-7777-7777-7777-777777777777',
+  realm_access: { roles: ['RETAIL_CUSTOMER'] },
+};
+
+export const TEST_RETAIL_CUSTOMER_B = {
+  sub: '88888888-8888-8888-8888-888888888888',
+  realm_access: { roles: ['RETAIL_CUSTOMER'] },
+};
+
+export const TEST_CORPORATE_MAKER = {
+  sub: '55555555-5555-5555-5555-555555555555',
+  realm_access: { roles: ['CORPORATE_MAKER'] },
 };
 
 export const TEST_NO_ROLE = {
@@ -57,10 +75,18 @@ export const mockKeycloakService = {
 };
 
 export async function createTestApp(
-  actor: Record<string, unknown> = TEST_SUPERADMIN,
+  actor: Record<string, unknown> | null = TEST_SUPERADMIN,
 ): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [TestAppModule],
+    providers: [
+      {
+        provide: APP_GUARD,
+        useFactory: (reflector: Reflector) => new E2eTestAuthGuard(reflector, actor),
+        inject: [Reflector],
+      },
+      { provide: APP_GUARD, useClass: RolesGuard },
+    ],
   })
     .overrideProvider(KeycloakService)
     .useValue(mockKeycloakService)
@@ -71,13 +97,7 @@ export async function createTestApp(
   const app = moduleFixture.createNestApplication();
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  // Matches main.ts — every success response comes back as { success, data, ... }.
   app.useGlobalInterceptors(new LoggingInterceptor(), new ResponseTransformInterceptor());
-
-  app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
-    req.user = actor;
-    next();
-  });
 
   await app.init();
   return app;

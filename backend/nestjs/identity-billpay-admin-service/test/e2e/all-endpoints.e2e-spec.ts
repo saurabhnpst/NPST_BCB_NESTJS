@@ -9,7 +9,10 @@ import {
   mockKeycloakService,
   publicRequest,
   TEST_BANK_ADMIN,
+  TEST_CORPORATE_MAKER,
   TEST_NO_ROLE,
+  TEST_RETAIL_CUSTOMER,
+  TEST_RETAIL_CUSTOMER_B,
 } from './helpers/test-app';
 import { AdminUser } from '../../src/modules/admin/admin-user/entities/admin-user.entity';
 import { BillerRegistration } from '../../src/modules/bill-payment/biller/entities/biller-registration.entity';
@@ -687,6 +690,7 @@ describe('All API endpoints (e2e)', () => {
   });
 
   describe('Bill Payment — Bill', () => {
+    let retailApp: INestApplication;
     let billerRepo: Repository<BillerRegistration>;
     let mockBillRepo: Repository<MockBill>;
     const billerCode = `BILL-FETCH-${Date.now()}`;
@@ -694,8 +698,9 @@ describe('All API endpoints (e2e)', () => {
     const registeredMobile = '9876543210';
 
     beforeAll(async () => {
-      billerRepo = app.get(getRepositoryToken(BillerRegistration));
-      mockBillRepo = app.get(getRepositoryToken(MockBill));
+      retailApp = await createTestApp(TEST_RETAIL_CUSTOMER);
+      billerRepo = retailApp.get(getRepositoryToken(BillerRegistration));
+      mockBillRepo = retailApp.get(getRepositoryToken(MockBill));
 
       await billerRepo.save(
         billerRepo.create({
@@ -719,8 +724,12 @@ describe('All API endpoints (e2e)', () => {
       );
     });
 
+    afterAll(async () => {
+      await retailApp.close();
+    });
+
     it('POST /api/v1/bill-payment/bill/fetch', async () => {
-      const res = await authedRequest(app)
+      const res = await authedRequest(retailApp)
         .post('/api/v1/bill-payment/bill/fetch')
         .send({ billerCode, consumerNumber, registeredMobile })
         .expect(201);
@@ -729,14 +738,14 @@ describe('All API endpoints (e2e)', () => {
     });
 
     it('POST /api/v1/bill-payment/bill/fetch returns 404 for an unknown bill', async () => {
-      await authedRequest(app)
+      await authedRequest(retailApp)
         .post('/api/v1/bill-payment/bill/fetch')
         .send({ billerCode, consumerNumber: '999999999999', registeredMobile })
         .expect(404);
     });
 
     it('POST /api/v1/bill-payment/bill/fetch returns 404 for an unknown biller', async () => {
-      await authedRequest(app)
+      await authedRequest(retailApp)
         .post('/api/v1/bill-payment/bill/fetch')
         .send({ billerCode: 'NON_EXISTENT_BILLER', consumerNumber, registeredMobile })
         .expect(404);
@@ -744,12 +753,18 @@ describe('All API endpoints (e2e)', () => {
   });
 
   describe('Bill Payment — Payment', () => {
+    let retailApp: INestApplication;
     let billerRepo: Repository<BillerRegistration>;
     let mockBillRepo: Repository<MockBill>;
 
-    beforeAll(() => {
-      billerRepo = app.get(getRepositoryToken(BillerRegistration));
-      mockBillRepo = app.get(getRepositoryToken(MockBill));
+    beforeAll(async () => {
+      retailApp = await createTestApp(TEST_RETAIL_CUSTOMER);
+      billerRepo = retailApp.get(getRepositoryToken(BillerRegistration));
+      mockBillRepo = retailApp.get(getRepositoryToken(MockBill));
+    });
+
+    afterAll(async () => {
+      await retailApp.close();
     });
 
     beforeEach(() => {
@@ -793,7 +808,7 @@ describe('All API endpoints (e2e)', () => {
         referenceId: 'TEST-BBPS-REF-1',
       });
 
-      const res = await authedRequest(app)
+      const res = await authedRequest(retailApp)
         .post('/api/v1/bill-payment/payment')
         .set('idempotency-key', `idem-success-${Date.now()}`)
         .send({
@@ -814,7 +829,7 @@ describe('All API endpoints (e2e)', () => {
 
     it('POST /api/v1/bill-payment/payment rejects an amount mismatch', async () => {
       const { billerCode, consumerNumber } = await seedBill('PAY-MISMATCH', 2000);
-      await authedRequest(app)
+      await authedRequest(retailApp)
         .post('/api/v1/bill-payment/payment')
         .set('idempotency-key', `idem-mismatch-${Date.now()}`)
         .send({
@@ -826,7 +841,7 @@ describe('All API endpoints (e2e)', () => {
     });
 
     it('POST /api/v1/bill-payment/payment returns 404 for an unmatched bill', async () => {
-      await authedRequest(app)
+      await authedRequest(retailApp)
         .post('/api/v1/bill-payment/payment')
         .set('idempotency-key', `idem-missing-${Date.now()}`)
         .send({
@@ -842,14 +857,14 @@ describe('All API endpoints (e2e)', () => {
       const idempotencyKey = `idem-replay-${Date.now()}`;
       const body = { billerCode, consumerNumber, amount: '500.00' };
 
-      const first = await authedRequest(app)
+      const first = await authedRequest(retailApp)
         .post('/api/v1/bill-payment/payment')
         .set('idempotency-key', idempotencyKey)
         .send(body)
         .expect(201);
       expect(first.body.data.duplicate).toBeFalsy();
 
-      const second = await authedRequest(app)
+      const second = await authedRequest(retailApp)
         .post('/api/v1/bill-payment/payment')
         .set('idempotency-key', idempotencyKey)
         .send(body)
@@ -863,13 +878,13 @@ describe('All API endpoints (e2e)', () => {
       const { billerCode, consumerNumber } = await seedBill('PAY-REUSE', 300);
       const idempotencyKey = `idem-reuse-${Date.now()}`;
 
-      await authedRequest(app)
+      await authedRequest(retailApp)
         .post('/api/v1/bill-payment/payment')
         .set('idempotency-key', idempotencyKey)
         .send({ billerCode, consumerNumber, amount: '300.00' })
         .expect(201);
 
-      await authedRequest(app)
+      await authedRequest(retailApp)
         .post('/api/v1/bill-payment/payment')
         .set('idempotency-key', idempotencyKey)
         .send({ billerCode, consumerNumber, amount: '999.00' })
@@ -877,16 +892,241 @@ describe('All API endpoints (e2e)', () => {
     });
 
     it('GET /api/v1/bill-payment/payment', async () => {
-      const res = await authedRequest(app).get('/api/v1/bill-payment/payment').expect(200);
+      const res = await authedRequest(retailApp).get('/api/v1/bill-payment/payment').expect(200);
       expect(res.body.data.some((p: { id: string }) => p.id === paymentId)).toBe(true);
+      expect(res.body.data.every((p: { keycloakUserId: string | null }) =>
+        p.keycloakUserId === TEST_RETAIL_CUSTOMER.sub || p.keycloakUserId === null,
+      )).toBe(true);
     });
 
     it('GET /api/v1/bill-payment/payment/:id', async () => {
-      const res = await authedRequest(app)
+      const res = await authedRequest(retailApp)
         .get(`/api/v1/bill-payment/payment/${paymentId}`)
         .expect(200);
       expect(res.body.data.id).toBe(paymentId);
       expect(res.body.data.billerCode).toBe(listedBillerCode);
+    });
+  });
+
+  describe('Bill Payment — Authorization', () => {
+    it('A. RETAIL_CUSTOMER cannot POST /bill-payment/biller', async () => {
+      const retailApp = await createTestApp(TEST_RETAIL_CUSTOMER);
+      await authedRequest(retailApp)
+        .post('/api/v1/bill-payment/biller')
+        .send({
+          billerCode: `RETAIL-DENY-${Date.now()}`,
+          billerName: 'Should Fail',
+          category: 'ELECTRICITY',
+        })
+        .expect(403);
+      await retailApp.close();
+    });
+
+    it('B. CORPORATE_MAKER cannot POST /bill-payment/biller', async () => {
+      const corpApp = await createTestApp(TEST_CORPORATE_MAKER);
+      await authedRequest(corpApp)
+        .post('/api/v1/bill-payment/biller')
+        .send({
+          billerCode: `CORP-DENY-${Date.now()}`,
+          billerName: 'Should Fail',
+          category: 'GAS',
+        })
+        .expect(403);
+      await corpApp.close();
+    });
+
+    it('C. BANK_ADMIN can POST /bill-payment/biller', async () => {
+      const bankApp = await createTestApp(TEST_BANK_ADMIN);
+      const billerCode = `BANK-ADMIN-${Date.now()}`;
+      const res = await authedRequest(bankApp)
+        .post('/api/v1/bill-payment/biller')
+        .send({ billerCode, billerName: 'Bank Admin Biller', category: 'WATER' })
+        .expect(201);
+      expect(res.body.data.billerCode).toBe(billerCode);
+      await bankApp.close();
+    });
+
+    it('D. BANK_SUPER_ADMIN can POST /bill-payment/biller', async () => {
+      const billerCode = `SUPER-${Date.now()}`;
+      const res = await authedRequest(app)
+        .post('/api/v1/bill-payment/biller')
+        .send({ billerCode, billerName: 'Super Admin Biller', category: 'ELECTRICITY' })
+        .expect(201);
+      expect(res.body.data.billerCode).toBe(billerCode);
+    });
+
+    it('E. RETAIL_CUSTOMER can POST /bill-payment/payment', async () => {
+      const retailApp = await createTestApp(TEST_RETAIL_CUSTOMER);
+      const billerRepo = retailApp.get(getRepositoryToken(BillerRegistration));
+      const mockBillRepo = retailApp.get(getRepositoryToken(MockBill));
+      const billerCode = `PAY-ALLOW-${Date.now()}`;
+      const consumerNumber = '111111111111';
+      await billerRepo.save(
+        billerRepo.create({
+          billerCode,
+          billerName: 'Pay Allow Test',
+          category: 'GAS',
+          active: true,
+        }),
+      );
+      await mockBillRepo.save(
+        mockBillRepo.create({
+          billerCode,
+          consumerNumber,
+          billNumber: `BN-${Date.now()}`,
+          registeredMobile: '9876543210',
+          customerName: 'Retail',
+          amount: 100,
+          dueDate: '2026-12-31',
+          status: 'UNPAID',
+        }),
+      );
+      await authedRequest(retailApp)
+        .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', `pay-allow-${Date.now()}`)
+        .send({ billerCode, consumerNumber, amount: '100' })
+        .expect(201);
+      await retailApp.close();
+    });
+
+    it('F. RETAIL_CUSTOMER GET /payment returns only own payments', async () => {
+      const customerA = await createTestApp(TEST_RETAIL_CUSTOMER);
+      const customerB = await createTestApp(TEST_RETAIL_CUSTOMER_B);
+      const billerRepo = customerA.get(getRepositoryToken(BillerRegistration));
+      const mockBillRepo = customerA.get(getRepositoryToken(MockBill));
+      const billerCode = `OWN-A-${Date.now()}`;
+      const consumerNumber = '222222222222';
+      await billerRepo.save(
+        billerRepo.create({
+          billerCode,
+          billerName: 'Owner A',
+          category: 'GAS',
+          active: true,
+        }),
+      );
+      await mockBillRepo.save(
+        mockBillRepo.create({
+          billerCode,
+          consumerNumber,
+          billNumber: `BN-A-${Date.now()}`,
+          registeredMobile: '9876543210',
+          customerName: 'A',
+          amount: 50,
+          dueDate: '2026-12-31',
+          status: 'UNPAID',
+        }),
+      );
+      const payRes = await authedRequest(customerA)
+        .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', `own-a-${Date.now()}`)
+        .send({ billerCode, consumerNumber, amount: '50' })
+        .expect(201);
+      const paymentId = payRes.body.data.paymentId as string;
+
+      const listB = await authedRequest(customerB).get('/api/v1/bill-payment/payment').expect(200);
+      expect(listB.body.data.some((p: { id: string }) => p.id === paymentId)).toBe(false);
+
+      const listA = await authedRequest(customerA).get('/api/v1/bill-payment/payment').expect(200);
+      expect(listA.body.data.some((p: { id: string }) => p.id === paymentId)).toBe(true);
+
+      await customerA.close();
+      await customerB.close();
+    });
+
+    it('G. RETAIL_CUSTOMER cannot GET another customer payment by id', async () => {
+      const customerA = await createTestApp(TEST_RETAIL_CUSTOMER);
+      const customerB = await createTestApp(TEST_RETAIL_CUSTOMER_B);
+      const billerRepo = customerA.get(getRepositoryToken(BillerRegistration));
+      const mockBillRepo = customerA.get(getRepositoryToken(MockBill));
+      const billerCode = `OWN-G-${Date.now()}`;
+      const consumerNumber = '333333333333';
+      await billerRepo.save(
+        billerRepo.create({
+          billerCode,
+          billerName: 'Owner G',
+          category: 'WATER',
+          active: true,
+        }),
+      );
+      await mockBillRepo.save(
+        mockBillRepo.create({
+          billerCode,
+          consumerNumber,
+          billNumber: `BN-G-${Date.now()}`,
+          registeredMobile: '9876543210',
+          customerName: 'G',
+          amount: 75,
+          dueDate: '2026-12-31',
+          status: 'UNPAID',
+        }),
+      );
+      const payRes = await authedRequest(customerA)
+        .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', `own-g-${Date.now()}`)
+        .send({ billerCode, consumerNumber, amount: '75' })
+        .expect(201);
+      const paymentId = payRes.body.data.paymentId as string;
+
+      await authedRequest(customerB)
+        .get(`/api/v1/bill-payment/payment/${paymentId}`)
+        .expect(404);
+
+      await customerA.close();
+      await customerB.close();
+    });
+
+    it('H. RETAIL_CUSTOMER GET /schedule returns only own schedules', async () => {
+      const customerA = await createTestApp(TEST_RETAIL_CUSTOMER);
+      const customerB = await createTestApp(TEST_RETAIL_CUSTOMER_B);
+      const createRes = await authedRequest(customerA)
+        .post('/api/v1/bill-payment/schedule')
+        .send({
+          billerCode: 'ELEC-MSEDCL-01',
+          consumerNumber: '100000000001',
+          scheduleType: 'ONE_TIME',
+          nextRunAt: '2026-10-05T09:00:00.000Z',
+          maximumAmount: 1000,
+        })
+        .expect(201);
+      const scheduleId = createRes.body.data.id as string;
+
+      const listB = await authedRequest(customerB).get('/api/v1/bill-payment/schedule').expect(200);
+      expect(listB.body.data.some((s: { id: string }) => s.id === scheduleId)).toBe(false);
+
+      const listA = await authedRequest(customerA).get('/api/v1/bill-payment/schedule').expect(200);
+      expect(listA.body.data.some((s: { id: string }) => s.id === scheduleId)).toBe(true);
+
+      await customerA.close();
+      await customerB.close();
+    });
+
+    it('I. RETAIL_CUSTOMER cannot GET another customer schedule by id', async () => {
+      const customerA = await createTestApp(TEST_RETAIL_CUSTOMER);
+      const customerB = await createTestApp(TEST_RETAIL_CUSTOMER_B);
+      const createRes = await authedRequest(customerA)
+        .post('/api/v1/bill-payment/schedule')
+        .send({
+          billerCode: 'GAS-GAIL-01',
+          consumerNumber: '100000000011',
+          scheduleType: 'ONE_TIME',
+          nextRunAt: '2026-11-05T09:00:00.000Z',
+          maximumAmount: 900,
+        })
+        .expect(201);
+      const scheduleId = createRes.body.data.id as string;
+
+      await authedRequest(customerB)
+        .get(`/api/v1/bill-payment/schedule/${scheduleId}`)
+        .expect(404);
+
+      await customerA.close();
+      await customerB.close();
+    });
+
+    it('J. unauthenticated request to BBPS returns 401', async () => {
+      const retailApp = await createTestApp(TEST_RETAIL_CUSTOMER);
+      await publicRequest(retailApp).get('/api/v1/bill-payment/biller').expect(401);
+      await retailApp.close();
     });
   });
 });

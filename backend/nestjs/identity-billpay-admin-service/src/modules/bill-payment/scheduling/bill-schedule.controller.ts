@@ -6,13 +6,17 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AuthenticatedUser } from 'nest-keycloak-connect';
 
 import { Auth } from '../../../common/decorators/auth.decorator';
+import {
+  BBPS_SCHEDULE_MUTATION_ROLES,
+  BBPS_SCHEDULE_READ_ROLES,
+} from '../../rbac/constants/rbac.constants';
 import { BillScheduleService } from './bill-schedule.service';
 import { CreateBillScheduleDto } from './dto/create-bill-schedule.dto';
 
 @ApiTags('Bill Payment — Schedule')
-@Auth()
 @Controller('bill-payment/schedule')
 export class BillScheduleController {
   constructor(
@@ -20,22 +24,31 @@ export class BillScheduleController {
   ) {}
 
   @Get()
-  findAll() {
-    return this.billScheduleService.findAll();
+  @Auth(...BBPS_SCHEDULE_READ_ROLES)
+  @ApiOperation({
+    summary: 'List bill payment schedules for the authenticated customer',
+  })
+  findAll(@AuthenticatedUser() actor: Record<string, unknown>) {
+    return this.billScheduleService.findAll(actor);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.billScheduleService.findOne(id);
+  @Auth(...BBPS_SCHEDULE_READ_ROLES)
+  @ApiOperation({ summary: 'Get a bill payment schedule by id' })
+  findOne(@Param('id') id: string, @AuthenticatedUser() actor: Record<string, unknown>) {
+    return this.billScheduleService.findOne(id, actor);
   }
 
   @Post()
+  @Auth(...BBPS_SCHEDULE_MUTATION_ROLES)
   @ApiOperation({
     summary: 'Create bill payment schedule',
-    description:
-      'Requires Swagger **Authorize** with `data.accessToken` from `POST /auth/login` (same as curl `Authorization: Bearer` header).',
+    description: 'RETAIL_CUSTOMER, CORPORATE_MAKER, or CORPORATE_IT_ADMIN.',
   })
-  create(@Body() dto: CreateBillScheduleDto) {
-    return this.billScheduleService.create(dto);
+  create(
+    @Body() dto: CreateBillScheduleDto,
+    @AuthenticatedUser() actor: Record<string, unknown>,
+  ) {
+    return this.billScheduleService.create(dto, actor);
   }
 }

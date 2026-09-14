@@ -42,6 +42,9 @@ frequency: string | null;
   @Column({ default: true })
   active: boolean;
 
+  @Column({ name: 'keycloak_user_id', type: 'varchar', length: 36, nullable: true })
+  keycloakUserId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

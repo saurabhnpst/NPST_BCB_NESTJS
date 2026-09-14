@@ -1,11 +1,16 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import {
+  assertScheduleOwnedByActor,
+  requireActorSub,
+} from '../common/bbps-access.util';
 import { BillSchedule } from './entities/bill-schedule.entity';
 import { CreateBillScheduleDto } from './dto/create-bill-schedule.dto';
 
@@ -16,17 +21,27 @@ export class BillScheduleService {
     private readonly repository: Repository<BillSchedule>,
   ) {}
 
-  findAll() {
-    return this.repository.find();
+  findAll(actor: Record<string, unknown>) {
+    const sub = requireActorSub(actor);
+    return this.repository.find({ where: { keycloakUserId: sub } });
   }
 
-  findOne(id: string) {
-    return this.repository.findOne({
+  async findOne(id: string, actor: Record<string, unknown>) {
+    const schedule = await this.repository.findOne({
       where: { id },
     });
+    if (!schedule) {
+      throw new NotFoundException({
+        code: 'SCHEDULE_NOT_FOUND',
+        message: 'Bill schedule not found',
+      });
+    }
+    assertScheduleOwnedByActor(schedule, actor);
+    return schedule;
   }
 
-  async create(dto: CreateBillScheduleDto) {
+  async create(dto: CreateBillScheduleDto, actor: Record<string, unknown>) {
+    const keycloakUserId = requireActorSub(actor);
     if (dto.scheduleType === 'RECURRING' && !dto.frequency) {
       throw new BadRequestException(
         'Frequency is required for recurring schedule',
@@ -47,6 +62,7 @@ export class BillScheduleService {
       nextRunAt: new Date(dto.nextRunAt),
       maximumAmount: dto.maximumAmount,
       active: true,
+      keycloakUserId,
     });
 
     return this.repository.save(schedule);

@@ -30,6 +30,9 @@ export class BillPayment {
   @Column({ name: 'idempotency_key', unique: true })
   idempotencyKey: string;
 
+  @Column({ name: 'keycloak_user_id', type: 'varchar', length: 36, nullable: true })
+  keycloakUserId: string | null;
+
   @Column({ name: 'bbps_reference_id', nullable: true })
   bbpsReferenceId: string;
 
