@@ -795,11 +795,11 @@ describe('All API endpoints (e2e)', () => {
 
       const res = await authedRequest(app)
         .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', `idem-success-${Date.now()}`)
         .send({
           billerCode,
           consumerNumber,
           amount: '2000.00',
-          idempotencyKey: `idem-success-${Date.now()}`,
         })
         .expect(201);
 
@@ -816,11 +816,11 @@ describe('All API endpoints (e2e)', () => {
       const { billerCode, consumerNumber } = await seedBill('PAY-MISMATCH', 2000);
       await authedRequest(app)
         .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', `idem-mismatch-${Date.now()}`)
         .send({
           billerCode,
           consumerNumber,
           amount: '1.00',
-          idempotencyKey: `idem-mismatch-${Date.now()}`,
         })
         .expect(400);
     });
@@ -828,11 +828,11 @@ describe('All API endpoints (e2e)', () => {
     it('POST /api/v1/bill-payment/payment returns 404 for an unmatched bill', async () => {
       await authedRequest(app)
         .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', `idem-missing-${Date.now()}`)
         .send({
           billerCode: 'NON_EXISTENT_BILLER',
           consumerNumber: '000000000000',
           amount: '10.00',
-          idempotencyKey: `idem-missing-${Date.now()}`,
         })
         .expect(404);
     });
@@ -840,16 +840,18 @@ describe('All API endpoints (e2e)', () => {
     it('POST /api/v1/bill-payment/payment replays an idempotent request without re-calling BBPS', async () => {
       const { billerCode, consumerNumber } = await seedBill('PAY-IDEM', 500);
       const idempotencyKey = `idem-replay-${Date.now()}`;
-      const body = { billerCode, consumerNumber, amount: '500.00', idempotencyKey };
+      const body = { billerCode, consumerNumber, amount: '500.00' };
 
       const first = await authedRequest(app)
         .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', idempotencyKey)
         .send(body)
         .expect(201);
       expect(first.body.data.duplicate).toBeFalsy();
 
       const second = await authedRequest(app)
         .post('/api/v1/bill-payment/payment')
+        .set('idempotency-key', idempotencyKey)
         .send(body)
         .expect(201);
       expect(second.body.data.duplicate).toBe(true);
@@ -863,12 +865,14 @@ describe('All API endpoints (e2e)', () => {
 
       await authedRequest(app)
         .post('/api/v1/bill-payment/payment')
-        .send({ billerCode, consumerNumber, amount: '300.00', idempotencyKey })
+        .set('idempotency-key', idempotencyKey)
+        .send({ billerCode, consumerNumber, amount: '300.00' })
         .expect(201);
 
       await authedRequest(app)
         .post('/api/v1/bill-payment/payment')
-        .send({ billerCode, consumerNumber, amount: '999.00', idempotencyKey })
+        .set('idempotency-key', idempotencyKey)
+        .send({ billerCode, consumerNumber, amount: '999.00' })
         .expect(400);
     });
 

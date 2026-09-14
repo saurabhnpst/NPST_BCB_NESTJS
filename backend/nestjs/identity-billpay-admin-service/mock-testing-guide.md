@@ -140,7 +140,8 @@ curl -X POST http://localhost:3000/api/v1/bill-payment/bill/fetch \
 
 curl -X POST http://localhost:3000/api/v1/bill-payment/payment \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"billerCode":"DEMO-ELEC-001","consumerNumber":"100000000001","amount":"1250.5","idempotencyKey":"any-unique-string"}'
+  -H 'Idempotency-Key: any-unique-string' \
+  -d '{"billerCode":"DEMO-ELEC-001","consumerNumber":"100000000001","amount":"1250.5"}'
 # -> data.status one of SUCCESS/FAILED/PENDING/TIMEOUT — see billpaymentservice.md §11 for the odds
 
 # Non-final status? Retry:

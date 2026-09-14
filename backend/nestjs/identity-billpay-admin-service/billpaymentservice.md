@@ -131,15 +131,17 @@ implementation — a missing biller and a missing bill both surface as `BILL_NOT
 | billerCode | String | Yes | Unique biller identifier |
 | consumerNumber | String | Yes | Customer consumer number |
 | amount | String | Yes | Amount to be paid — must exactly equal the bill's stored amount |
-| idempotencyKey | String | Yes | Unique key for the payment request (see §6) |
+| Idempotency-Key (header) | String | Yes | Unique key for the payment request (see §8) |
 
 ### Request
+```http
+Idempotency-Key: docverify-001
+```
 ```json
 {
   "billerCode": "DEMO-WATER-001",
   "consumerNumber": "100000000002",
-  "amount": "480.00",
-  "idempotencyKey": "docverify-001"
+  "amount": "480.00"
 }
 ```
 
@@ -197,11 +199,13 @@ payment already at `SUCCESS` is returned unchanged (safe to call speculatively).
 
 ## 8. Idempotency
 
-The frontend/mobile client generates a unique UUID as `idempotencyKey` for each **new** payment
-attempt. For a retry caused by a timeout or network failure (i.e. the client doesn't know if the
-first request landed), the **same** `idempotencyKey` must be reused — the backend returns the
-existing payment and does **not** invoke BBPS again. The `idempotency_key` column is `NOT NULL`
-and `UNIQUE`.
+The frontend/mobile client generates a unique UUID and sends it on the **`Idempotency-Key` header**
+for each **new** payment attempt (`IdempotencyKeyInterceptor` on `POST /bill-payment/payment`
+merges it into the service layer). For a retry caused by a timeout or network failure (i.e. the
+client doesn't know if the first request landed), the **same** key must be reused — the backend
+returns the existing payment and does **not** invoke BBPS again. The `idempotency_key` column is
+`NOT NULL` and `UNIQUE`. A legacy `idempotencyKey` JSON field is still accepted when the header is
+omitted.
 
 ```
 First request              → BBPS called     → Payment created
@@ -211,7 +215,7 @@ Same key + different billerCode/consumerNumber/amount
                             → 400 IDEMPOTENCY_KEY_REUSED
 ```
 
-This is a **body field**, specific to this endpoint — it's the only idempotency requirement
+This is **header-driven** on this endpoint (via `@IdempotencyKey()`) — it's the only idempotency requirement
 anywhere in this API (see [api endpoint guide.md](api%20endpoint%20guide.md)).
 
 ## 9. Database Tables

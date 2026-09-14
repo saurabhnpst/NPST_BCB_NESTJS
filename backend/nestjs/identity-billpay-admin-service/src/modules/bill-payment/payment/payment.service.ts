@@ -88,35 +88,32 @@ export class PaymentService {
     }
 
     // 0. Idempotency check
-  const existingPayment = await this.paymentRepository.findOne({
-    where: {
-      idempotencyKey: dto.idempotencyKey,
-    },
-  });
-
-  if (existingPayment) {
-  const sameRequest =
-    existingPayment.billerCode === dto.billerCode &&
-    existingPayment.consumerNumber === dto.consumerNumber &&
-    Number(existingPayment.amount) === Number(dto.amount);
-
-  if (!sameRequest) {
-    throw new BadRequestException({
-      code: 'IDEMPOTENCY_KEY_REUSED',
-      message: 'Idempotency key is already used for a different payment',
+    const existingPayment = await this.paymentRepository.findOne({
+      where: {
+        idempotencyKey: dto.idempotencyKey!,
+      },
     });
-  }
 
-  return {
-    paymentId: existingPayment.id,
-    billerCode: existingPayment.billerCode,
-    consumerNumber: existingPayment.consumerNumber,
-    amount: existingPayment.amount,
-    status: existingPayment.status,
-    bbpsReferenceId: existingPayment.bbpsReferenceId,
-    duplicate: true,
-  };
-}
+    if (existingPayment) {
+      const sameRequest = await this.isSamePaymentRequest(dto, existingPayment);
+
+      if (!sameRequest) {
+        throw new BadRequestException({
+          code: 'IDEMPOTENCY_KEY_REUSED',
+          message: 'Idempotency key is already used for a different payment',
+        });
+      }
+
+      return {
+        paymentId: existingPayment.id,
+        billerCode: existingPayment.billerCode,
+        consumerNumber: existingPayment.consumerNumber,
+        amount: existingPayment.amount,
+        status: existingPayment.status,
+        bbpsReferenceId: existingPayment.bbpsReferenceId,
+        duplicate: true,
+      };
+    }
 
     // 1. Find bill
     const found = dto.billNumber
@@ -168,7 +165,7 @@ export class PaymentService {
       consumerNumber: bill.consumerNumber,
       amount: billAmount,
       status: bbpsResponse.status,
-      idempotencyKey: dto.idempotencyKey,
+      idempotencyKey: dto.idempotencyKey!,
       bbpsReferenceId: bbpsResponse.referenceId,
     });
 
@@ -206,6 +203,30 @@ export class PaymentService {
    * on; swap MockBbpsAdapter for a real implementation of the same BbpsAdapter interface
    * once a live BBPS/CBS endpoint exists.
    */
+  private async isSamePaymentRequest(
+    dto: CreatePaymentDto,
+    existingPayment: BillPayment,
+  ): Promise<boolean> {
+    if (dto.billNumber) {
+      const found = await this.findBillingRecordByBillNumber(dto.billNumber);
+      if (!found) {
+        return false;
+      }
+      const bill = found.record;
+      return (
+        existingPayment.billerCode === bill.billerCode &&
+        existingPayment.consumerNumber === bill.consumerNumber &&
+        Number(existingPayment.amount) === Number(bill.amount)
+      );
+    }
+
+    return (
+      existingPayment.billerCode === dto.billerCode &&
+      existingPayment.consumerNumber === dto.consumerNumber &&
+      Number(existingPayment.amount) === Number(dto.amount)
+    );
+  }
+
   async payViaBbps(billPaymentId: string): Promise<void> {
     const payment = await this.paymentRepository.findOne({ where: { id: billPaymentId } });
     if (!payment) {

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Auth } from '../../../common/decorators/auth.decorator';
+import { IdempotencyKey } from '../../../common/decorators/idempotency-key.decorator';
 import { IdRequestDto } from '../../../common/dto/id-request.dto';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -23,6 +24,7 @@ export class PaymentController {
   }
 
   @Post()
+  @IdempotencyKey()
   create(@Body() dto: CreatePaymentDto) {
     return this.service.create(dto);
   }

@@ -487,6 +487,5 @@ POST /auth/login  (clientId: "mobile-app", username: mobileNumber, password from
 
 Persist `attemptId` client-side through the whole registration saga; on app relaunch, call
 `POST /auth/registration/resume` with it before assuming onboarding needs to restart from scratch.
-`POST /bill-payment/payment`'s `idempotencyKey` **body field** (a completely separate mechanism —
-see [billpaymentservice.md](billpaymentservice.md)) is the only idempotency requirement left
-anywhere in this API; nothing under `/auth/*` requires one.
+`POST /bill-payment/payment`'s **`Idempotency-Key` header** (see [billpaymentservice.md](billpaymentservice.md))
+is the only idempotency requirement left anywhere in this API; nothing under `/auth/*` requires one.

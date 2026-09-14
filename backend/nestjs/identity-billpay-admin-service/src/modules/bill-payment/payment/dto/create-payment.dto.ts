@@ -33,8 +33,13 @@ export class CreatePaymentDto {
   @IsString()
   amount?: string;
 
-  @ApiProperty({ example: 'pay-unique-key-001' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({
+    description:
+      'Deprecated — prefer the `Idempotency-Key` request header. Still accepted when the header is omitted.',
+    example: 'pay-unique-key-001',
+  })
+  @IsOptional()
   @IsString()
-  idempotencyKey: string;
+  @IsNotEmpty()
+  idempotencyKey?: string;
 }
